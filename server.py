@@ -2,6 +2,7 @@
 
 import socket
 import argparse
+import opentuner
 
 parser = argparse.ArgumentParser(description="Process server options.")
 
@@ -36,7 +37,6 @@ if __name__ == "__main__":
     while 1:
         data = conn.recv(BUFFER_SIZE)
         if not data: break
-        conn.send(data)
         command = (data.strip()).split(" ")
 
         if command[0] == "CLONE":
@@ -45,3 +45,5 @@ if __name__ == "__main__":
             conn.send("Starting the Measurement Server..." + "\n")
         elif command[0] == "MEASURE":
             conn.send("Measuring Configuration: " + command[1] + "\n")
+        else:
+            conn.send("Unknown command: " + command[0] + "\n")
