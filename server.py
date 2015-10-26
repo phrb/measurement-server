@@ -2,7 +2,6 @@
 
 import socket
 import argparse
-import opentuner
 
 parser = argparse.ArgumentParser(description="Process server options.")
 
