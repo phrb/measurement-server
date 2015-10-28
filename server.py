@@ -2,12 +2,12 @@
 
 import socket, argparse, opentuner, sys, threading
 
-from commands import *
 from status_codes import *
+from commands import *
 
 from time import sleep
 
-parser = argparse.ArgumentParser(description="Process server options.")
+parser = argparse.ArgumentParser(description = "Process server options.")
 
 parser.add_argument("--tcp-port",
                     dest    = "tcp_port",
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     conn, addr = sock.accept()
 
-    while 1:
+    while True:
         data = conn.recv(BUFFER_SIZE)
         if not data: break
         command = (data.strip()).split(" ")

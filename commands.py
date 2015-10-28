@@ -3,17 +3,18 @@ import socket, argparse, sys, threading, subprocess, imp, os, pickle
 from opentuner.resultsdb.models import Result, Input, Configuration
 
 from status_codes import *
+from error_codes import *
 
-CLONE      = "CLONE"
-START      = "START"
-MEASURE    = "MEASURE"
-STOP       = "STOP"
-LOAD       = "LOAD"
-STATUS     = "STATUS"
-GET        = "GET"
-SHUTDOWN   = "SHUTDOWN"
-UNKNOWN    = "UNKNOWN"
-DISCONNECT = "DISCONNECT"
+CLONE       = "CLONE"
+START       = "START"
+MEASURE     = "MEASURE"
+STOP        = "STOP"
+LOAD        = "LOAD"
+STATUS      = "STATUS"
+GET         = "GET"
+SHUTDOWN    = "SHUTDOWN"
+UNKNOWN     = "UNKNOWN"
+DISCONNECT  = "DISCONNECT"
 
 USER_MODULE = None
 INTERFACE   = None
@@ -21,9 +22,9 @@ RUN         = None
 RESULT      = None
 
 def run(desired_result, input, limit):
-    global SERVER_STATUS, RESULT_READY, RESULT, USER_MODULE
+    global SERVER_STATUS, RESULT
     try:
-        RESULT = RUN(eval("USER_MODULE." + INTERFACE + "()"),
+        RESULT = RUN(eval("USER_MODULE.{0}()".format(INTERFACE)),
                      desired_result,
                      input,
                      limit)
@@ -34,17 +35,24 @@ def run(desired_result, input, limit):
     SERVER_STATUS = RESULT_READY
 
 def get_result(conn, command):
-    global SERVER_STATUS, AVAILABLE, RESULT_READY, RESULT
+    global SERVER_STATUS, RESULT
 
     if SERVER_STATUS == STOPPED:
-        conn.send(GET + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(GET,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     elif SERVER_STATUS != RESULT_READY:
-        conn.send(GET + " "  + str(SERVER_STATUS) + " No results available.\n")
+        conn.send("{0} {1} {2} No results available.\n".format(GET,
+                                                               NO_RESULTS_ERROR,
+                                                               SERVER_STATUS))
         command = command[1:]
     else:
         result        = repr(pickle.dumps(RESULT))
-        conn.send(GET + " " + str(SERVER_STATUS) + " " + result + " \n")
+        conn.send("{0} {1} {2} {3}\n".format(GET,
+                                             NO_ERROR,
+                                             SERVER_STATUS,
+                                             result))
         RESULT        = None
         command       = command[1:]
         SERVER_STATUS = AVAILABLE
@@ -52,44 +60,59 @@ def get_result(conn, command):
     return command
 
 def clone(conn, command):
-    global SERVER_STATUS, AVAILABLE
-
     if SERVER_STATUS == STOPPED:
-        conn.send(CLONE + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(CLONE,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     elif len(command) < 3:
-        conn.send(CLONE + "  4 \"CLONE\" takes two arguments:\n\t\"CLONE REPO DIST_DIR\"\n")
+        conn.send(("{0} {1} {2} \"CLONE\" takes two arguments:\n\t"
+                   "\"CLONE REPO DIST_DIR\"\n").format(CLONE,
+                                                       ARGUMENT_ERROR,
+                                                       SERVER_STATUS))
         command = []
     else:
-        conn.send(CLONE + " " + str(SERVER_STATUS) + " Cloning repository \"" +
-                  command[1] + "\" to: \"" + command[2] + "\"\n")
+        conn.send("{0} {1} {2} Cloning.\n".format(CLONE,
+                                                  NO_ERROR,
+                                                  SERVER_STATUS))
 
         try:
-            retcode = subprocess.call("git clone " + command[1] + " " +
-                                      command[2], shell = True)
+            retcode = subprocess.call("git clone {0} {1}".format(command[1],
+                                                                 command[2]),
+                                                                 shell = True)
 
-            conn.send(CLONE + " " + str(SERVER_STATUS) + " " + str(retcode) + "\n")
+            conn.send("{0} {1} {2} {3}\n".format(CLONE,
+                                                 NO_ERROR,
+                                                 SERVER_STATUS,
+                                                 retcode))
         except OSError as e:
             print >>sys.stderr, "Execution failed:", e
-            conn.send(CLONE + " 6 Execution failed.")
+            conn.send("{0} {1} {2} Execution failed.\n".format(CLONE,
+                                                               GITCLONE_ERROR,
+                                                               SERVER_STATUS))
 
         command = command[3:]
 
     return command
 
 def load_interface(conn, command):
-    global SERVER_STATUS, AVAILABLE, USER_MODULE, RUN, INTERFACE
+    global USER_MODULE, RUN, INTERFACE
 
     if SERVER_STATUS == STOPPED:
-        conn.send(LOAD + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(LOAD,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     elif len(command) < 3:
-        conn.send(LOAD + "  4 \"LOAD\" takes two arguments:\n\t\"LOAD TUNER_PATH INTERFACE_NAME\"\n")
+        conn.send(("{0} {1} {2} \"LOAD\" takes two arguments:\n\t"
+                   "\"LOAD TUNER_PATH INTERFACE_NAME\"\n").format(LOAD,
+                                                                 ARGUMENT_ERROR,
+                                                                 SERVER_STATUS))
         command = []
     else:
-        conn.send(LOAD + " " + str(SERVER_STATUS) + " Loading interface \"" +
-                  command[2] + "\" from: \"" + command[1] + "\"\n")
-
+        conn.send("{0} {1} {2} Loading interface.\n".format(LOAD,
+                                                            NO_ERROR,
+                                                            SERVER_STATUS))
         if os.path.isfile(command[1]):
             # Loads user module as USER_MODULE, using the file path
             # received from the user.
@@ -98,22 +121,31 @@ def load_interface(conn, command):
             # Stores the measurement function to be used by the server;
             # Looks for the "run" function inside the user module.
             # TODO: Treat error.
-            RUN       = eval("USER_MODULE." + INTERFACE + ".run")
-            conn.send(LOAD + " " + str(SERVER_STATUS) + " Done.\n")
+            RUN = eval("USER_MODULE.{0}.run".format(INTERFACE))
+            conn.send("{0} {1} {2} Done.\n".format(LOAD,
+                                                   NO_ERROR,
+                                                   SERVER_STATUS))
         else:
-            conn.send(LOAD + " 7 No such file. Perhaps you should clone it first.\n")
+            conn.send(("{0} {1} {2} No such file."
+                       " Perhaps you should clone it first.\n").format(LOAD,
+                                                                       NO_FILE_ERROR,
+                                                                       SERVER_STATUS))
 
         command = command[3:]
 
     return command
 
 def start(conn, command):
-    global SERVER_STATUS, STOPPED, AVAILABLE
+    global SERVER_STATUS
 
     if SERVER_STATUS != STOPPED:
-        conn.send(START + " " + str(SERVER_STATUS) + " The server was already started.\n")
+        conn.send("{0} {1} {2} The server was already started.\n".format(START,
+                                                                         STARTED_ERROR,
+                                                                         SERVER_STATUS))
     else:
-        conn.send(START + " " + str(SERVER_STATUS) + " Starting measurement server...\n")
+        conn.send("{0} {1} {2} Starting measurement server...\n".format(START,
+                                                                        NO_ERROR,
+                                                                        SERVER_STATUS))
         # Initialization...
         SERVER_STATUS = AVAILABLE
 
@@ -122,21 +154,29 @@ def start(conn, command):
     return command
 
 def measure(conn, command):
-    global SERVER_STATUS, AVAILABLE, MEASURING
+    global SERVER_STATUS
 
     if len(command) < 4:
-        conn.send(MEASURE + " 4 \"MEASURE\" takes three arguments:\n\t\"")
-        conn.send(MEASURE + " PICKLED_CONFIG PICKLED_INPUT LIMIT\"\n")
+        conn.send(("{0} {1} {2} \"MEASURE\" takes three arguments:\n\t"
+                   "\"MEASURE PICKLED_CONFIG PICKLED_INPUT LIMIT\"\n").format(MEASURE,
+                                                                              ARGUMENT_ERROR,
+                                                                              SERVER_STATUS))
         command = []
     elif SERVER_STATUS != AVAILABLE:
-        conn.send(MEASURE + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(MEASURE,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     elif RUN is None:
-        conn.send(MEASURE + " 8 No \"run\" method defined.\n")
+        conn.send("{0} {1} {2} No \"run\" method defined.\n".format(MEASURE,
+                                                                    NO_RUN_METHOD_ERROR,
+                                                                    SERVER_STATUS))
         command = []
     else:
         SERVER_STATUS = MEASURING
-        conn.send(MEASURE + " " + str(SERVER_STATUS) + " Setting up measurement.\n")
+        conn.send("{0} {1} {2} Setting up measurement.\n".format(MEASURE,
+                                                                 NO_ERROR,
+                                                                 SERVER_STATUS))
         desired_result = Result(configuration = pickle.loads(eval(command[1])))
         input          = pickle.loads(eval(command[2]))
         limit          = float(command[3])
@@ -145,51 +185,63 @@ def measure(conn, command):
                                                     limit))
         thread.daemon = True
         thread.start()
-        conn.send(MEASURE + " " + str(SERVER_STATUS) + " Measuring.\n")
+        conn.send("{0} {1} {2} Measuring.\n".format(MEASURE,
+                                                    NO_ERROR,
+                                                    SERVER_STATUS))
         command = command[4:]
 
     return command
 
 def disconnect(conn, command):
-    conn.send(DISCONNECT + " " + str(SERVER_STATUS) + " Closing Connection.\n")
+    conn.send("{0} {1} {2} Closing connection.\n".format(DISCONNECT,
+                                                         NO_ERROR,
+                                                         SERVER_STATUS))
     conn.close()
     command = []
 
     return command
 
 def stop(conn, command):
-    global SERVER_STATUS, AVAILABLE, STOPPED
+    global SERVER_STATUS
 
     if SERVER_STATUS != AVAILABLE:
-        conn.send(STOP + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(STOP,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     else:
-        conn.send(STOP + " " + str(SERVER_STATUS) + " Stopping the server.\n")
+        conn.send("{0} {1} {2} Stopping the server.\n".format(STOP,
+                                                              NO_ERROR,
+                                                              SERVER_STATUS))
         SERVER_STATUS = STOPPED
 
     command = command[1:]
     return command
 
 def shutdown(conn, command):
-    global SERVER_STATUS, AVAILABLE
-
     if SERVER_STATUS != AVAILABLE:
-        conn.send(SHUTDOWN + " " + str(SERVER_STATUS) + " The server is not available.\n")
+        conn.send("{0} {1} {2} The server is not available.\n".format(SHUTDOWN,
+                                                                      UNAVAILABLE_ERROR,
+                                                                      SERVER_STATUS))
         command = []
     else:
-        conn.send(SHUTDOWN + " " + str(SERVER_STATUS) + " Shutting down the server.\n")
+        conn.send("{0} {1} {2} Shutting down the server.\n".format(SHUTDOWN,
+                                                                   NO_ERROR,
+                                                                   SERVER_STATUS))
         disconnect(conn, command)
         sys.exit()
 
     return command
 
 def status(conn, command):
-    global SERVER_STATUS
-    conn.send(STATUS + " " + str(SERVER_STATUS) + "\n")
+    conn.send("{0} {1} {2}\n".format(STATUS, NO_ERROR, SERVER_STATUS))
     command = command[1:]
     return command
 
 def unknown(conn, command):
-    conn.send(UNKNOWN + " 5 Unknown command: " + command[0] + "\n")
+    conn.send("{0} {1} {2} {3} Unknown command.\n".format(UNKNOWN,
+                                                          UNKNOWN_COMMAND_ERROR,
+                                                          SERVER_STATUS,
+                                                          command[0]))
     command = []
     return command

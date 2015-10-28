@@ -8,7 +8,7 @@ def rosenbrock(x, y):
     return (1 - x) ** 2 + 100 * (y - x * x) ** 2
 
 SERVER_IP      = "localhost"
-SERVER_PORT    = 8000
+SERVER_PORT    = 8080
 BUFFER_SIZE    = 4096
 
 REPO           = " https://github.com/phrb/autotuning-gce.git"
@@ -74,7 +74,7 @@ response = (sock.recv(BUFFER_SIZE).strip()).split(" ")
 print response
 
 # Wait for the result to be ready.
-while response[1] != "2":
+while response[2] != "3":
     sleep(1)
     msg = "status"
     sock.sendall(msg)
@@ -90,7 +90,7 @@ print "sending: " + msg
 response = sock.recv(BUFFER_SIZE)
 
 # Unpickle the result.
-result = pickle.loads(eval((response.strip()).split(" ")[2]))
+result = pickle.loads(eval((response.strip()).split(" ")[3]))
 
 data = pickle.loads(config).data
 
@@ -106,7 +106,7 @@ print "sending: " + msg
 response = (sock.recv(BUFFER_SIZE).strip()).split(" ")
 print response
 
-while response[1] != "0":
+while response[2] != "1":
     sleep(1)
     msg = "status"
     sock.sendall(msg)
