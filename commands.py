@@ -5,57 +5,69 @@ from opentuner.resultsdb.models import Result, Input, Configuration
 from status_codes import *
 from error_codes import *
 
-CLONE       = "CLONE"
-START       = "START"
-MEASURE     = "MEASURE"
-STOP        = "STOP"
-LOAD        = "LOAD"
-STATUS      = "STATUS"
-GET         = "GET"
-SHUTDOWN    = "SHUTDOWN"
-UNKNOWN     = "UNKNOWN"
-DISCONNECT  = "DISCONNECT"
+CLONE         = "CLONE"
+START         = "START"
+MEASURE       = "MEASURE"
+STOP          = "STOP"
+LOAD          = "LOAD"
+STATUS        = "STATUS"
+GET           = "GET"
+SHUTDOWN      = "SHUTDOWN"
+UNKNOWN       = "UNKNOWN"
+DISCONNECT    = "DISCONNECT"
 
-USER_MODULE = None
-INTERFACE   = None
-RUN         = None
-RESULT      = None
+user_module   = None
+interface     = None
+user_run      = None
 
-def run(desired_result, input, limit):
-    global SERVER_STATUS, RESULT
+results       = {}
+results_queue = {}
+
+def run(result_id):
+    global results
     try:
-        RESULT = RUN(eval("USER_MODULE.{0}()".format(INTERFACE)),
-                     desired_result,
-                     input,
-                     limit)
+        result = results_queue.pop(result_id)
+        results[result_id] = user_run(eval("user_module.{0}()".format(interface)),
+                                      result[0],
+                                      result[1],
+                                      result[2])
     except:
-        SERVER_STATUS = AVAILABLE
         raise
 
-    SERVER_STATUS = RESULT_READY
-
 def get_result(conn, command):
-    global SERVER_STATUS, RESULT
+    global results
 
     if SERVER_STATUS == STOPPED:
         conn.send("{0} {1} {2} The server is not available.\n".format(GET,
                                                                       UNAVAILABLE_ERROR,
                                                                       SERVER_STATUS))
         command = []
-    elif SERVER_STATUS != RESULT_READY:
-        conn.send("{0} {1} {2} No results available.\n".format(GET,
-                                                               NO_RESULTS_ERROR,
-                                                               SERVER_STATUS))
-        command = command[1:]
+    elif len(command) < 2:
+        conn.send(("{0} {1} {2} \"GET\" takes one argument:\n\t"
+                   "\"GET RESULT_ID\"\n").format(GET,
+                                                 ARGUMENT_ERROR,
+                                                 SERVER_STATUS))
+        command = []
+    elif int(command[1]) not in results:
+        if int(command[1]) in results_queue:
+            conn.send("{0} {1} {2} {3} Result is not ready.\n".format(GET,
+                                                                      NOT_READY_ERROR,
+                                                                      SERVER_STATUS,
+                                                                      command[1]))
+        else:
+            conn.send("{0} {1} {2} {3} No such result.\n".format(GET,
+                                                                 NO_SUCH_RESULT_ERROR,
+                                                                 SERVER_STATUS,
+                                                                 command[1]))
+        command = command[2:]
     else:
-        result        = repr(pickle.dumps(RESULT))
-        conn.send("{0} {1} {2} {3}\n".format(GET,
-                                             NO_ERROR,
-                                             SERVER_STATUS,
-                                             result))
-        RESULT        = None
-        command       = command[1:]
-        SERVER_STATUS = AVAILABLE
+        result = repr(pickle.dumps(results.pop(int(command[1]))))
+        conn.send("{0} {1} {2} {3} {4}\n".format(GET,
+                                                 NO_ERROR,
+                                                 SERVER_STATUS,
+                                                 command[1],
+                                                 result))
+        command = command[2:]
 
     return command
 
@@ -86,7 +98,6 @@ def clone(conn, command):
                                                  SERVER_STATUS,
                                                  retcode))
         except OSError as e:
-            print >>sys.stderr, "Execution failed:", e
             conn.send("{0} {1} {2} Execution failed.\n".format(CLONE,
                                                                GITCLONE_ERROR,
                                                                SERVER_STATUS))
@@ -96,7 +107,7 @@ def clone(conn, command):
     return command
 
 def load_interface(conn, command):
-    global USER_MODULE, RUN, INTERFACE
+    global user_module, user_run, interface
 
     if SERVER_STATUS == STOPPED:
         conn.send("{0} {1} {2} The server is not available.\n".format(LOAD,
@@ -114,14 +125,14 @@ def load_interface(conn, command):
                                                             NO_ERROR,
                                                             SERVER_STATUS))
         if os.path.isfile(command[1]):
-            # Loads user module as USER_MODULE, using the file path
+            # Loads user module as user_module, using the file path
             # received from the user.
-            USER_MODULE = imp.load_source("USER_MODULE", command[1])
-            INTERFACE   = command[2]
+            user_module = imp.load_source("user_module", command[1])
+            interface   = command[2]
             # Stores the measurement function to be used by the server;
             # Looks for the "run" function inside the user module.
             # TODO: Treat error.
-            RUN = eval("USER_MODULE.{0}.run".format(INTERFACE))
+            user_run = eval("user_module.{0}.run".format(interface))
             conn.send("{0} {1} {2} Done.\n".format(LOAD,
                                                    NO_ERROR,
                                                    SERVER_STATUS))
@@ -154,8 +165,7 @@ def start(conn, command):
     return command
 
 def measure(conn, command):
-    global SERVER_STATUS
-
+    global results_queue
     if len(command) < 4:
         conn.send(("{0} {1} {2} \"MEASURE\" takes three arguments:\n\t"
                    "\"MEASURE PICKLED_CONFIG PICKLED_INPUT LIMIT\"\n").format(MEASURE,
@@ -167,27 +177,27 @@ def measure(conn, command):
                                                                       UNAVAILABLE_ERROR,
                                                                       SERVER_STATUS))
         command = []
-    elif RUN is None:
+    elif user_run is None:
         conn.send("{0} {1} {2} No \"run\" method defined.\n".format(MEASURE,
                                                                     NO_RUN_METHOD_ERROR,
                                                                     SERVER_STATUS))
         command = []
     else:
-        SERVER_STATUS = MEASURING
         conn.send("{0} {1} {2} Setting up measurement.\n".format(MEASURE,
                                                                  NO_ERROR,
                                                                  SERVER_STATUS))
         desired_result = Result(configuration = pickle.loads(eval(command[1])))
         input          = pickle.loads(eval(command[2]))
         limit          = float(command[3])
-        thread = threading.Thread(target=run, args=(desired_result,
-                                                    input,
-                                                    limit))
+        result_id      = hash(eval(command[1]))
+        results_queue[result_id] = (desired_result, input, limit)
+        thread = threading.Thread(target=run, args=(result_id,))
         thread.daemon = True
         thread.start()
-        conn.send("{0} {1} {2} Measuring.\n".format(MEASURE,
-                                                    NO_ERROR,
-                                                    SERVER_STATUS))
+        conn.send("{0} {1} {2} {3} Measuring.\n".format(MEASURE,
+                                                        NO_ERROR,
+                                                        SERVER_STATUS,
+                                                        result_id))
         command = command[4:]
 
     return command
