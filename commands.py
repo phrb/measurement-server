@@ -1,7 +1,8 @@
-import socket, argparse, opentuner, sys, threading, subprocess, imp, os
+import socket, argparse, sys, threading, subprocess, imp, os, pickle
+
+from opentuner.resultsdb.models import Result, Input, Configuration
 
 from status_codes import *
-from time import sleep
 
 CLONE      = "CLONE"
 START      = "START"
@@ -14,15 +15,26 @@ SHUTDOWN   = "SHUTDOWN"
 UNKNOWN    = "UNKNOWN"
 DISCONNECT = "DISCONNECT"
 
-INTERFACE  = None
+USER_MODULE = None
+INTERFACE   = None
+RUN         = None
+RESULT      = None
 
-def run(time):
-    global SERVER_STATUS, RESULT_READY
-    sleep(time)
+def run(desired_result, input, limit):
+    global SERVER_STATUS, RESULT_READY, RESULT, USER_MODULE
+    try:
+        RESULT = RUN(eval("USER_MODULE." + INTERFACE + "()"),
+                     desired_result,
+                     input,
+                     limit)
+    except:
+        SERVER_STATUS = AVAILABLE
+        raise
+
     SERVER_STATUS = RESULT_READY
 
 def get_result(conn, command):
-    global SERVER_STATUS, AVAILABLE, RESULT_READY
+    global SERVER_STATUS, AVAILABLE, RESULT_READY, RESULT
 
     if SERVER_STATUS == STOPPED:
         conn.send(GET + " " + str(SERVER_STATUS) + " The server is not available.\n")
@@ -31,8 +43,10 @@ def get_result(conn, command):
         conn.send(GET + " "  + str(SERVER_STATUS) + " No results available.\n")
         command = command[1:]
     else:
-        conn.send(GET + " " + str(SERVER_STATUS) + " PICKLED_RESULT\n")
-        command = command[1:]
+        result        = repr(pickle.dumps(RESULT))
+        conn.send(GET + " " + str(SERVER_STATUS) + " " + result + " \n")
+        RESULT        = None
+        command       = command[1:]
         SERVER_STATUS = AVAILABLE
 
     return command
@@ -64,7 +78,7 @@ def clone(conn, command):
     return command
 
 def load_interface(conn, command):
-    global SERVER_STATUS, AVAILABLE, INTERFACE
+    global SERVER_STATUS, AVAILABLE, USER_MODULE, RUN, INTERFACE
 
     if SERVER_STATUS == STOPPED:
         conn.send(LOAD + " " + str(SERVER_STATUS) + " The server is not available.\n")
@@ -77,9 +91,15 @@ def load_interface(conn, command):
                   command[2] + "\" from: \"" + command[1] + "\"\n")
 
         if os.path.isfile(command[1]):
-            INTERFACE = imp.load_source("USER_MODULE", command[1])
+            # Loads user module as USER_MODULE, using the file path
+            # received from the user.
+            USER_MODULE = imp.load_source("USER_MODULE", command[1])
+            INTERFACE   = command[2]
+            # Stores the measurement function to be used by the server;
+            # Looks for the "run" function inside the user module.
+            # TODO: Treat error.
+            RUN       = eval("USER_MODULE." + INTERFACE + ".run")
             conn.send(LOAD + " " + str(SERVER_STATUS) + " Done.\n")
-            eval("INTERFACE." + command[2] + ".run")
         else:
             conn.send(LOAD + " 7 No such file. Perhaps you should clone it first.\n")
 
@@ -111,12 +131,21 @@ def measure(conn, command):
     elif SERVER_STATUS != AVAILABLE:
         conn.send(MEASURE + " " + str(SERVER_STATUS) + " The server is not available.\n")
         command = []
+    elif RUN is None:
+        conn.send(MEASURE + " 8 No \"run\" method defined.\n")
+        command = []
     else:
         SERVER_STATUS = MEASURING
-        conn.send(MEASURE + " " + str(SERVER_STATUS) + " Measuring...\n")
-        thread = threading.Thread(target=run, args=(16, ))
+        conn.send(MEASURE + " " + str(SERVER_STATUS) + " Setting up measurement.\n")
+        desired_result = Result(configuration = pickle.loads(eval(command[1])))
+        input          = pickle.loads(eval(command[2]))
+        limit          = float(command[3])
+        thread = threading.Thread(target=run, args=(desired_result,
+                                                    input,
+                                                    limit))
         thread.daemon = True
         thread.start()
+        conn.send(MEASURE + " " + str(SERVER_STATUS) + " Measuring.\n")
         command = command[4:]
 
     return command
