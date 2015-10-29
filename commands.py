@@ -1,38 +1,55 @@
-import socket, argparse, sys, threading, subprocess, imp, os, pickle
+import socket, argparse, sys
+import threading, subprocess, imp
+import os, pickle, random
 
 from opentuner.resultsdb.models import Result, Input, Configuration
 
 from status_codes import *
 from error_codes import *
 
-CLONE         = "CLONE"
-START         = "START"
-MEASURE       = "MEASURE"
-STOP          = "STOP"
-LOAD          = "LOAD"
-STATUS        = "STATUS"
-GET           = "GET"
-SHUTDOWN      = "SHUTDOWN"
-UNKNOWN       = "UNKNOWN"
-DISCONNECT    = "DISCONNECT"
+CLONE               = "CLONE"
+START               = "START"
+MEASURE             = "MEASURE"
+STOP                = "STOP"
+LOAD                = "LOAD"
+STATUS              = "STATUS"
+GET                 = "GET"
+SHUTDOWN            = "SHUTDOWN"
+UNKNOWN             = "UNKNOWN"
+DISCONNECT          = "DISCONNECT"
 
-user_module   = None
-interface     = None
-user_run      = None
+user_module         = None
+interface           = None
+user_run            = None
 
-results       = {}
-results_queue = {}
+queue_lock          = threading.Lock()
 
-def run(result_id):
-    global results
-    try:
-        result = results_queue.pop(result_id)
-        results[result_id] = user_run(eval("user_module.{0}()".format(interface)),
-                                      result[0],
-                                      result[1],
-                                      result[2])
-    except:
-        raise
+results             = {}
+configuration_queue = {}
+processing          = []
+
+def run():
+    global results, configuration_queue, processing
+
+    while SERVER_STATUS == AVAILABLE:
+        if bool(configuration_queue):
+            queue_lock.acquire()
+
+            result_id     = random.choice(configuration_queue.keys())
+            configuration = configuration_queue.pop(result_id)
+            processing.append(result_id)
+
+            queue_lock.release()
+            result = user_run(eval("user_module.{0}()".format(interface)),
+                                   configuration[0],
+                                   configuration[1],
+                                   configuration[2])
+            queue_lock.acquire()
+
+            processing.pop()
+            results[result_id] = result
+
+            queue_lock.release()
 
 def get_result(conn, command):
     global results
@@ -49,7 +66,7 @@ def get_result(conn, command):
                                                  SERVER_STATUS))
         command = []
     elif int(command[1]) not in results:
-        if int(command[1]) in results_queue:
+        if int(command[1]) in processing:
             conn.send("{0} {1} {2} {3} Result is not ready.\n".format(GET,
                                                                       NOT_READY_ERROR,
                                                                       SERVER_STATUS,
@@ -61,7 +78,11 @@ def get_result(conn, command):
                                                                  command[1]))
         command = command[2:]
     else:
+        queue_lock.acquire()
+
         result = repr(pickle.dumps(results.pop(int(command[1]))))
+
+        queue_lock.release()
         conn.send("{0} {1} {2} {3} {4}\n".format(GET,
                                                  NO_ERROR,
                                                  SERVER_STATUS,
@@ -157,15 +178,17 @@ def start(conn, command):
         conn.send("{0} {1} {2} Starting measurement server...\n".format(START,
                                                                         NO_ERROR,
                                                                         SERVER_STATUS))
-        # Initialization...
         SERVER_STATUS = AVAILABLE
+        thread        = threading.Thread(target=run, args=())
+        thread.daemon = True
+        thread.start()
 
     command = command[1:]
 
     return command
 
 def measure(conn, command):
-    global results_queue
+    global configuration_queue
     if len(command) < 4:
         conn.send(("{0} {1} {2} \"MEASURE\" takes three arguments:\n\t"
                    "\"MEASURE PICKLED_CONFIG PICKLED_INPUT LIMIT\"\n").format(MEASURE,
@@ -186,14 +209,15 @@ def measure(conn, command):
         conn.send("{0} {1} {2} Setting up measurement.\n".format(MEASURE,
                                                                  NO_ERROR,
                                                                  SERVER_STATUS))
-        desired_result = Result(configuration = pickle.loads(eval(command[1])))
-        input          = pickle.loads(eval(command[2]))
-        limit          = float(command[3])
-        result_id      = hash(eval(command[1]))
-        results_queue[result_id] = (desired_result, input, limit)
-        thread = threading.Thread(target=run, args=(result_id,))
-        thread.daemon = True
-        thread.start()
+        desired_result                 = Result(configuration = pickle.loads(eval(command[1])))
+        input                          = pickle.loads(eval(command[2]))
+        limit                          = float(command[3])
+        result_id                      = hash(eval(command[1]))
+        queue_lock.acquire()
+
+        configuration_queue[result_id] = (desired_result, input, limit)
+
+        queue_lock.release()
         conn.send("{0} {1} {2} {3} Measuring.\n".format(MEASURE,
                                                         NO_ERROR,
                                                         SERVER_STATUS,
@@ -212,7 +236,7 @@ def disconnect(conn, command):
     return command
 
 def stop(conn, command):
-    global SERVER_STATUS
+    global SERVER_STATUS, results, configuration_queue, processing
 
     if SERVER_STATUS != AVAILABLE:
         conn.send("{0} {1} {2} The server is not available.\n".format(STOP,
@@ -224,6 +248,13 @@ def stop(conn, command):
                                                               NO_ERROR,
                                                               SERVER_STATUS))
         SERVER_STATUS = STOPPED
+        queue_lock.acquire()
+
+        results             = {}
+        configuration_queue = {}
+        processing          = []
+
+        queue_lock.release()
 
     command = command[1:]
     return command

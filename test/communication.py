@@ -4,11 +4,15 @@ import pickle
 
 from time import sleep
 
+#TODO Add assertions
+#TODO Test configuration queue
+#     with multiple requests.
+
 def rosenbrock(x, y):
     return (1 - x) ** 2 + 100 * (y - x * x) ** 2
 
 SERVER_IP      = "localhost"
-SERVER_PORT    = 8080
+SERVER_PORT    = 8000
 BUFFER_SIZE    = 4096
 
 REPO           = " https://github.com/phrb/autotuning-gce.git"
@@ -23,6 +27,36 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Connect the socket to the port where the server is listening
 server_address = (SERVER_IP, SERVER_PORT)
 print >>sys.stderr, 'connecting to %s port %s' % server_address
+sock.connect(server_address)
+
+msg = "start"
+sock.sendall(msg)
+print "sending: " + msg
+
+# START
+print(sock.recv(BUFFER_SIZE).strip())
+
+msg = "stop"
+sock.sendall(msg)
+print "sending: " + msg
+
+# STOP
+print(sock.recv(BUFFER_SIZE).strip())
+
+msg = "disconnect"
+sock.sendall(msg)
+print "sending: " + msg
+
+# DISCONNECT
+print(sock.recv(BUFFER_SIZE).strip())
+
+print >>sys.stderr, 'disconnecting'
+sock.close()
+
+sleep(1)
+
+print >>sys.stderr, 'connecting to %s port %s' % server_address
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.connect(server_address)
 
 msg = "start"
