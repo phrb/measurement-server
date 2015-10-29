@@ -9,21 +9,21 @@ from time import sleep
 
 parser = argparse.ArgumentParser(description = "Process server options.")
 
-parser.add_argument("--tcp-port",
+parser.add_argument("--port",
                     dest    = "tcp_port",
                     type    = int,
                     default = 8080,
                     help    = "The port to listen to.")
-parser.add_argument("--buffer-size",
+parser.add_argument("--buffer",
                     dest    = "buffer_size",
                     type    = int,
                     default = 4096,
                     help    = "The message buffer size.")
-parser.add_argument("--tcp-ip",
+parser.add_argument("--ip",
                     dest    = "tcp_ip",
                     type    = str,
                     default = '',
-                    help    = "The message buffer size.")
+                    help    = "The IP to listen to.")
 
 
 if __name__ == "__main__":
