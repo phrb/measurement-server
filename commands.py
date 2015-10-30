@@ -212,7 +212,7 @@ def measure(conn, command):
         desired_result                 = Result(configuration = pickle.loads(eval(command[1])))
         input                          = pickle.loads(eval(command[2]))
         limit                          = float(command[3])
-        result_id                      = hash(eval(command[1]))
+        result_id                      = hash(repr(desired_result))
         queue_lock.acquire()
 
         configuration_queue[result_id] = (desired_result, input, limit)
