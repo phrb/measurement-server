@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import socket, argparse, opentuner, sys, threading
+import socket, argparse, opentuner, sys, threading, logging
 
 from status_codes import *
 from commands import *
@@ -27,6 +27,15 @@ parser.add_argument("--ip",
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig(filename = "server.log",
+                        level = logging.DEBUG,
+                        filemode = "w",
+                        format = "%(asctime)s %(message)s",
+                        datefmt = "%d/%m/%Y %I:%M:%S %p")
+
+    logging.info("Starting server.")
+
     args        = parser.parse_args()
     TCP_IP      = args.tcp_ip
     TCP_PORT    = args.tcp_port
@@ -36,7 +45,11 @@ if __name__ == "__main__":
     sock.bind((TCP_IP, TCP_PORT))
     sock.listen(1)
 
+    logging.info("Done. Waiting for connections...")
+
     conn, addr = sock.accept()
+
+    logging.info("Got a connection, entering server loop.")
 
     while True:
         data = conn.recv(BUFFER_SIZE)

@@ -12,7 +12,7 @@ def rosenbrock(x, y):
     return (1 - x) ** 2 + 100 * (y - x * x) ** 2
 
 SERVER_IP      = "localhost"
-SERVER_PORT    = 8000
+SERVER_PORT    = 8080
 BUFFER_SIZE    = 4096
 
 REPO           = " https://github.com/phrb/autotuning-gce.git"
