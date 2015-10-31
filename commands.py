@@ -146,6 +146,7 @@ def load_interface(conn, command):
                                                             NO_ERROR,
                                                             SERVER_STATUS))
         if os.path.isfile(command[1]):
+            sys.path.insert(1, os.path.dirname(command[1]))
             # Loads user module as user_module, using the file path
             # received from the user.
             user_module = imp.load_source("user_module", command[1])
