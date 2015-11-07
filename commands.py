@@ -110,9 +110,9 @@ def clone(conn, command):
                                                   SERVER_STATUS))
 
         try:
-            retcode = subprocess.call("git clone {0} {1}".format(command[1],
-                                                                 command[2]),
-                                                                 shell = True)
+            retcode = subprocess.call("git clone --recursive {0} {1}".format(command[1],
+                                                                             command[2]),
+                                                                             shell = True)
 
             conn.send("{0} {1} {2} {3}\n".format(CLONE,
                                                  NO_ERROR,
