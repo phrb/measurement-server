@@ -65,8 +65,8 @@ def get_result(conn, command):
                                                  ARGUMENT_ERROR,
                                                  SERVER_STATUS))
         command = []
-    elif int(command[1]) not in results:
-        if int(command[1]) in processing:
+    elif command[1] not in results:
+        if command[1] in processing:
             conn.send("{0} {1} {2} {3} Result is not ready.\n".format(GET,
                                                                       NOT_READY_ERROR,
                                                                       SERVER_STATUS,
