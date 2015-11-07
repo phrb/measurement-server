@@ -1,6 +1,6 @@
 import socket, argparse, sys
 import threading, subprocess, imp
-import os, pickle, random
+import os, pickle, random, uuid
 
 from opentuner.resultsdb.models import Result, Input, Configuration
 
@@ -213,7 +213,7 @@ def measure(conn, command):
         desired_result                 = Result(configuration = pickle.loads(eval(command[1])))
         input                          = pickle.loads(eval(command[2]))
         limit                          = float(command[3])
-        result_id                      = hash(repr(desired_result))
+        result_id                      = str(uuid.uuid4())
         queue_lock.acquire()
 
         configuration_queue[result_id] = (desired_result, input, limit)
