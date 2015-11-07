@@ -80,7 +80,7 @@ def get_result(conn, command):
     else:
         queue_lock.acquire()
 
-        result = repr(pickle.dumps(results.pop(int(command[1]))))
+        result = repr(pickle.dumps(results.pop(command[1])))
 
         queue_lock.release()
         conn.send("{0} {1} {2} {3} {4}\n".format(GET,
