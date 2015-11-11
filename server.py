@@ -17,7 +17,7 @@ parser.add_argument("--port",
 parser.add_argument("--buffer",
                     dest    = "buffer_size",
                     type    = int,
-                    default = 4096,
+                    default = 8192,
                     help    = "The message buffer size.")
 parser.add_argument("--ip",
                     dest    = "tcp_ip",
