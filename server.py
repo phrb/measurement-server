@@ -61,9 +61,7 @@ if __name__ == "__main__":
     logging.info("Got a connection, entering server loop.")
 
     while True:
-        logging.info("Waiting message.")
         data = recv_message(conn, size = BUFFER_SIZE)
-        logging.info("Received message.")
         if not data: break
         command = (data.strip()).split(" ")
 
