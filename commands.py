@@ -133,7 +133,7 @@ def clone(conn, command):
     return command
 
 def load_interface(conn, command):
-    global user_module, user_run, interface
+    global user_module, user_run, interface, logger
 
     if SERVER_STATUS == STOPPED:
         conn.send("{0} {1} {2} The server is not available.\n".format(LOAD,
@@ -152,13 +152,13 @@ def load_interface(conn, command):
                                                             SERVER_STATUS))
         if os.path.isfile(command[1]):
             sys.path.insert(1, os.path.dirname(command[1]))
-
-            logger.info("Changing working directory to {0}".format(os.path.dirname(command[1])))
-            os.chdir(os.path.dirname(command[1]))
-
             # Loads user module as user_module, using the file path
             # received from the user.
             user_module = imp.load_source("user_module", command[1])
+
+            logger.debug("Changing working directory to {0}".format(os.path.dirname(command[1])))
+            os.chdir(os.path.dirname(command[1]))
+
             interface   = command[2]
             # Stores the measurement function to be used by the server;
             # Looks for the "run" function inside the user module.
