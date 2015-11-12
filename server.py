@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     fileHandler.setFormatter(formatter)
 
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.info)
     logger.addHandler(fileHandler)
 
     logger.info("Starting server.")
