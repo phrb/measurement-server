@@ -31,6 +31,7 @@ def recv_message(sock, size = 8192, delim = "\n"):
     global buffer
     while True:
         buffer += sock.recv(size)
+        print buffer
         if buffer.find(delim) != -1:
             line, buffer = buffer.split("\n", 1)
             return line
