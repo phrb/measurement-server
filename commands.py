@@ -48,7 +48,6 @@ def run():
 
             processing.pop()
             results[result_id] = result
-            logging.info("Result: {0}".format(result.time))
 
             queue_lock.release()
 
