@@ -1,4 +1,4 @@
-import socket, argparse, sys
+import socket, argparse, sys, logging
 import threading, subprocess, imp
 import os, pickle, random, uuid
 
@@ -27,6 +27,8 @@ queue_lock          = threading.Lock()
 results             = {}
 configuration_queue = {}
 processing          = []
+
+logger              = logging.getLogger("MeasurementServer")
 
 def run():
     global results, configuration_queue, processing, logger
