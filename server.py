@@ -31,10 +31,8 @@ def recv_message(sock, size = 8192, delim = "\n"):
     global buffer
     while True:
         buffer += sock.recv(size)
-        logging.info("Received: {0}".format(buffer))
         if buffer.find(delim) != -1:
             line, buffer = buffer.split("\n", 1)
-            logging.info("Received full line: {0}".format(line))
             return line
 
 if __name__ == "__main__":
