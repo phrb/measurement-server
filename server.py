@@ -17,7 +17,7 @@ parser.add_argument("--port",
 parser.add_argument("--buffer",
                     dest    = "buffer_size",
                     type    = int,
-                    default = 16384,
+                    default = 8192,
                     help    = "The message buffer size.")
 parser.add_argument("--ip",
                     dest    = "tcp_ip",
@@ -25,6 +25,15 @@ parser.add_argument("--ip",
                     default = '',
                     help    = "The IP to listen to.")
 
+buffer = ""
+
+def recv_message(sock, size = 8192, delim = "\n"):
+    global buffer
+    while True:
+        buffer += sock.recv(size)
+        if buffer.find(delim) != -1:
+            line, buffer = buffer.split("\n", 1)
+            return line
 
 if __name__ == "__main__":
 
@@ -52,7 +61,7 @@ if __name__ == "__main__":
     logging.info("Got a connection, entering server loop.")
 
     while True:
-        data = conn.recv(BUFFER_SIZE)
+        data = recv_message(conn, size = BUFFER_SIZE)
         if not data: break
         command = (data.strip()).split(" ")
 
