@@ -26,6 +26,7 @@ parser.add_argument("--ip",
                     help    = "The IP to listen to.")
 
 buffer = ""
+logger = None
 
 def recv_message(sock, size = 8192, delim = "\n"):
     global buffer
@@ -36,14 +37,19 @@ def recv_message(sock, size = 8192, delim = "\n"):
             return line
 
 if __name__ == "__main__":
+    global logger
 
-    logging.basicConfig(filename = "server.log",
-                        level = logging.DEBUG,
-                        filemode = "w",
-                        format = "%(asctime)s %(message)s",
-                        datefmt = "%d/%m/%Y %I:%M:%S %p")
+    logger = logging.getLogger("MeasurementServer")
 
-    logging.info("Starting server.")
+    formatter   = logging.Formatter("%(asctime)s : %(message)s")
+    fileHandler = logging.FileHandler("server.log", mode="w")
+
+    fileHandler.setFormatter(formatter)
+
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(fileHandler)
+
+    logger.info("Starting server.")
 
     args        = parser.parse_args()
     TCP_IP      = args.tcp_ip
@@ -54,11 +60,11 @@ if __name__ == "__main__":
     sock.bind((TCP_IP, TCP_PORT))
     sock.listen(1)
 
-    logging.info("Done. Waiting for connections...")
+    logger.info("Done. Waiting for connections...")
 
     conn, addr = sock.accept()
 
-    logging.info("Got a connection, entering server loop.")
+    logger.info("Got a connection, entering server loop.")
 
     while True:
         data = recv_message(conn, size = BUFFER_SIZE)

@@ -29,7 +29,7 @@ configuration_queue = {}
 processing          = []
 
 def run():
-    global results, configuration_queue, processing
+    global results, configuration_queue, processing, logger
 
     while SERVER_STATUS == AVAILABLE:
         if bool(configuration_queue):
@@ -40,6 +40,9 @@ def run():
             processing.append(result_id)
 
             queue_lock.release()
+
+            logger.debug("Desired Result Configuration: {0}".format(configuration[0].configuration.data))
+
             result = user_run(eval("user_module.{0}()".format(interface)),
                                    configuration[0],
                                    configuration[1],
