@@ -40,12 +40,10 @@ def run():
             processing.append(result_id)
 
             queue_lock.release()
-            logging.info("Entering user run()")
             result = user_run(eval("user_module.{0}()".format(interface)),
                                    configuration[0],
                                    configuration[1],
                                    configuration[2])
-            logging.info("Done.")
             queue_lock.acquire()
 
             processing.pop()
